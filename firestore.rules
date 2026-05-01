@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Blueprints
+    function isValidContainer(data) {
+      return data.get('userId', '') == request.auth.uid &&
+             data.get('containerCode', '') is string && data.get('containerCode', '').size() > 0 && data.get('containerCode', '').size() <= 64 &&
+             data.get('type', '') in ['Local', 'Foreign'] &&
+             data.get('status', '') in ['Active', 'Repairing', 'Repaired', 'Billing', 'Invoiced', 'Archived'] &&
+             (data.get('createdAt', '') is string || data.get('createdAt', null) is timestamp) &&
+             (data.get('localCode', null) == null || (data.localCode is string && data.localCode.size() <= 64)) &&
+             (data.get('notes', null) == null || (data.notes is string && data.notes.size() <= 1000));
+    }
+
+    function isValidHistory(data) {
+      return data.get('userId', '') == request.auth.uid &&
+             isValidId(data.get('containerId', '')) &&
+             data.get('status', '') is string &&
+             (data.get('note', null) == null || data.note is string) &&
+             (data.get('details', null) == null || data.details is string) &&
+             (data.get('timestamp', '') is string || data.get('timestamp', null) is timestamp); 
+    }
+
+    function isValidInvoice(data) {
+      return data.get('userId', '') == request.auth.uid &&
+             data.get('invoiceNumber', '') is string && data.get('invoiceNumber', '').size() > 0 &&
+             data.get('status', '') in ['Pending', 'Active', 'Billing', 'Billed', 'Archived'] &&
+             (data.get('createdAt', '') is string || data.get('createdAt', null) is timestamp) &&
+             (data.get('containerIds', null) == null || data.containerIds is list) &&
+             (data.get('containerCodes', null) == null || data.containerCodes is list) &&
+             (data.get('containerPrices', null) == null || data.containerPrices is map) &&
+             (data.get('totalAmount', null) == null || data.totalAmount is number) &&
+             (data.get('isManual', null) == null || data.isManual is bool) &&
+             (data.get('totalQuantity', null) == null || data.totalQuantity is number) &&
+             (data.get('completionStatus', null) == null || data.completionStatus is string) &&
+             (data.get('manualContainers', null) == null || data.manualContainers is list);
+    }
+
+    match /containers/{containerId} {
+      allow get: if isSignedIn() && isValidId(containerId) && existing().get('userId', '') == request.auth.uid;
+      allow list: if isSignedIn() && existing().get('userId', '') == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(containerId) && isValidContainer(incoming());
+      allow update: if isSignedIn() && isValidId(containerId) && isValidContainer(incoming()) && incoming().get('userId', '') == existing().get('userId', '');
+      allow delete: if isSignedIn() && existing().get('userId', '') == request.auth.uid;
+
+      match /history/{historyId} {
+        allow get: if isSignedIn() && isValidId(historyId) && existing().get('userId', '') == request.auth.uid;
+        allow list: if isSignedIn() && existing().get('userId', '') == request.auth.uid;
+        allow create: if isSignedIn() && isValidId(historyId) && isValidHistory(incoming());
+        allow delete: if isSignedIn() && existing().get('userId', '') == request.auth.uid;
+      }
+    }
+
+    match /invoices/{invoiceId} {
+      allow get: if isSignedIn() && isValidId(invoiceId) && existing().get('userId', '') == request.auth.uid;
+      allow list: if isSignedIn() && existing().get('userId', '') == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(invoiceId) && isValidInvoice(incoming());
+      allow update: if isSignedIn() && isValidId(invoiceId) && isValidInvoice(incoming()) && incoming().get('userId', '') == existing().get('userId', '');
+      allow delete: if isSignedIn() && existing().get('userId', '') == request.auth.uid;
+    }
+  }
+}

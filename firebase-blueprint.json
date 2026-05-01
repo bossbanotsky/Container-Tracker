@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "Container": {
+      "title": "Container",
+      "description": "Represents a shipping container being tracked for repairs.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "containerCode": { "type": "string" },
+        "type": { "type": "string", "enum": ["Local", "Foreign"] },
+        "localCode": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["Active", "Repairing", "Repaired", "Billing", "Archived"]
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string" }
+      },
+      "required": ["userId", "containerCode", "type", "status", "createdAt"]
+    },
+    "History": {
+      "title": "History",
+      "description": "Historical record for a container's lifecycle.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "containerId": { "type": "string" },
+        "status": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string" }
+      },
+      "required": ["userId", "containerId", "status", "timestamp"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "An invoice representing a collection of repaired containers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Archived", "Pending", "Billed"] },
+        "containerIds": { "type": "array" },
+        "containerPrices": { "type": "object", "description": "Mapping of containerId to price" },
+        "totalAmount": { "type": "number", "description": "Total amount of the invoice" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "containers/{containerId}": {
+      "schema": { "$ref": "#/entities/Container" },
+      "description": "The collection of all containers."
+    },
+    "containers/{containerId}/history/{historyId}": {
+      "schema": { "$ref": "#/entities/History" },
+      "description": "The subcollection of history events for a container."
+    },
+    "invoices/{invoiceId}": {
+      "schema": { "$ref": "#/entities/Invoice" },
+      "description": "The collection of invoices."
+    }
+  }
+}
