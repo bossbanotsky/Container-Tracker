@@ -44,6 +44,7 @@ export const ContainerItem: React.FC<{
   const [editNotes, setEditNotes] = useState(container.notes || '');
   const [editType, setEditType] = useState<'Local' | 'Foreign'>(container.type);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [statusToConfirm, setStatusToConfirm] = useState<Container['status'] | null>(null);
 
   React.useEffect(() => {
     setLocalCodeInput(container.localCode || '');
@@ -209,17 +210,17 @@ export const ContainerItem: React.FC<{
                       {(['Active', 'Repairing', 'Repaired'].includes(container.status)) && (
                           <div className="flex flex-wrap gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
                               {container.status === 'Active' && (
-                                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-xs font-bold" onClick={() => updateStatus('Repairing')}>
+                                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-xs font-bold" onClick={() => setStatusToConfirm('Repairing')}>
                                       Start Repair
                                   </Button>
                               )}
                               {container.status === 'Repairing' && (
-                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-xs font-bold" onClick={() => updateStatus('Repaired')}>
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-xs font-bold" onClick={() => setStatusToConfirm('Repaired')}>
                                       Complete Repair
                                   </Button>
                               )}
                               {container.status === 'Repaired' && (
-                                  <Button size="sm" variant="outline" className="text-amber-700 border-amber-300 text-xs font-bold" onClick={() => updateStatus('Repairing')}>
+                                  <Button size="sm" variant="outline" className="text-amber-700 border-amber-300 text-xs font-bold" onClick={() => setStatusToConfirm('Repairing')}>
                                       Undo Repair
                                   </Button>
                               )}
@@ -421,6 +422,30 @@ export const ContainerItem: React.FC<{
             </Button>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={!!statusToConfirm} onOpenChange={(open) => !open && setStatusToConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="uppercase font-black tracking-tight">Confirm Status Change</AlertDialogTitle>
+            <AlertDialogDescription className="font-medium text-gray-600">
+              Are you sure you want to change the status of <span className="font-black text-blue-600">{container.localCode || container.containerCode}</span> to <span className="font-black uppercase text-gray-900">{statusToConfirm}</span>? This action will be logged in the history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl font-bold uppercase tracking-widest text-[10px]">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (statusToConfirm) {
+                  updateStatus(statusToConfirm);
+                  setStatusToConfirm(null);
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700 rounded-xl font-bold uppercase tracking-widest text-[10px]"
+            >
+              Confirm Update
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
