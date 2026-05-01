@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { db, auth, handleFirestoreError, OperationType } from '../src/lib/firebase';
 import { doc, updateDoc, deleteDoc, addDoc, collection } from 'firebase/firestore';
 import { Box, Wrench, CheckCircle2, History, Trash2, Info, Pencil, ArrowRight } from 'lucide-react';
-import { ContainerHistory } from './ContainerHistory';
+import { ContainerHistory, InlineContainerHistory } from './ContainerHistory';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -293,7 +293,7 @@ export const ContainerItem: React.FC<{
     </Accordion>
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto custom-scrollbar">
             <DialogHeader>
                 <DialogTitle className="text-xl font-black uppercase tracking-tight">Edit Container Identity</DialogTitle>
             </DialogHeader>
@@ -364,7 +364,7 @@ export const ContainerItem: React.FC<{
         </DialogContent>
       </Dialog>
       <Dialog open={showFullDetails} onOpenChange={setShowFullDetails}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto custom-scrollbar">
             <DialogHeader>
                 <DialogTitle className="text-xl font-black uppercase tracking-tight">Full Container Profile</DialogTitle>
             </DialogHeader>
@@ -398,7 +398,14 @@ export const ContainerItem: React.FC<{
                     </p>
                 </div>
 
-                <div className="space-y-3 pt-2">
+                <div className="pt-2 border-t border-gray-100 space-y-2">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Activity History</span>
+                    <div className="bg-gray-50 p-2 rounded-xl h-40 overflow-y-auto custom-scrollbar border border-gray-100">
+                        <InlineContainerHistory containerId={container.id} />
+                    </div>
+                </div>
+
+                <div className="space-y-3 pt-2 border-t border-gray-100">
                     <div className="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                         <span>Registration Date</span>
                         <span className="text-gray-900">{formatDate(container.createdAt)}</span>

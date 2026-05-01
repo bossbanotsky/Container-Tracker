@@ -21,6 +21,7 @@ import {
 import { Input } from '@/components/ui/input';
 
 import { Checkbox } from '@/components/ui/checkbox';
+import { InlineContainerHistory } from './ContainerHistory';
 
 export function ArchivedInvoices() {
     const [invoices, setInvoices] = useState<any[]>([]);
@@ -29,6 +30,11 @@ export function ArchivedInvoices() {
     const [allContainers, setAllContainers] = useState<any[]>([]);
     const [editSelectedIds, setEditSelectedIds] = useState<Set<string>>(new Set());
     const [selectedContainerDetail, setSelectedContainerDetail] = useState<any | null>(null);
+    const [editLocalCode, setEditLocalCode] = useState('');
+    const [editForeignCode, setEditForeignCode] = useState('');
+    const [editType, setEditType] = useState<'Local' | 'Foreign'>('Local');
+    const [editNotes, setEditNotes] = useState('');
+    const [isSavingContainer, setIsSavingContainer] = useState(false);
 
     useEffect(() => {
         const q = query(
@@ -232,8 +238,19 @@ export function ArchivedInvoices() {
                                                                 key={`${index}`} 
                                                                 className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all group cursor-pointer"
                                                                 onClick={() => {
-                                                                    if (!invoice.isManual && item) {
-                                                                        setSelectedContainerDetail(item);
+                                                                    if (item) {
+                                                                        const priceKey = invoice.isManual ? (item.number !== undefined ? String(item.number - 1) : String(index)) : item.id;
+                                                                        const invPrice = invoice.containerPrices ? invoice.containerPrices[priceKey] : undefined;
+                                                                        setSelectedContainerDetail({
+                                                                            ...item, 
+                                                                            invoicePrice: invPrice,
+                                                                            isManualItem: invoice.isManual,
+                                                                            parentInvoiceId: invoice.id
+                                                                        });
+                                                                        setEditLocalCode(invoice.isManual ? item.rawText : (item.localCode || ''));
+                                                                        setEditForeignCode(item.containerCode || '');
+                                                                        setEditType(item.type || 'Local');
+                                                                        setEditNotes(item.notes || '');
                                                                     }
                                                                 }}
                                                             >
@@ -404,41 +421,96 @@ export function ArchivedInvoices() {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={!!selectedContainerDetail} onOpenChange={(open) => !open && setSelectedContainerDetail(null)}>
-                <DialogContent className="max-w-md">
+            <Dialog open={!!selectedContainerDetail} onOpenChange={(open) => {
+                if (!open) {
+                    setSelectedContainerDetail(null);
+                    setEditLocalCode('');
+                    setEditForeignCode('');
+                }
+            }}>
+                <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto custom-scrollbar">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-black uppercase tracking-tight">Technical Profile</DialogTitle>
                     </DialogHeader>
                     {selectedContainerDetail && (
                         <div className="space-y-6 py-4">
-                            <div className="grid grid-cols-2 gap-6 pb-6 border-b border-gray-100">
-                                <div className="space-y-1">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Serial Number</span>
-                                    <p className="text-xl font-black tracking-tight">{selectedContainerDetail.containerCode}</p>
+                            <div className="flex p-1 bg-gray-100 rounded-xl border border-gray-200">
+                                <Button 
+                                    variant={editType === 'Local' ? 'default' : 'ghost'}
+                                    className={`flex-1 rounded-lg font-black uppercase text-[10px] tracking-widest ${editType === 'Local' ? 'bg-blue-600 shadow-md' : 'text-gray-500'}`}
+                                    onClick={() => setEditType('Local')}
+                                >
+                                    Local
+                                </Button>
+                                <Button 
+                                    variant={editType === 'Foreign' ? 'default' : 'ghost'}
+                                    className={`flex-1 rounded-lg font-black uppercase text-[10px] tracking-widest ${editType === 'Foreign' ? 'bg-amber-600 shadow-md' : 'text-gray-500'}`}
+                                    onClick={() => setEditType('Foreign')}
+                                >
+                                    Foreign
+                                </Button>
+                            </div>
+
+                            <div className="space-y-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Local Identity</label>
+                                    <Input 
+                                        value={editLocalCode} 
+                                        onChange={(e) => setEditLocalCode(e.target.value.toUpperCase())}
+                                        placeholder="Local Code"
+                                        className="font-black text-lg h-12 rounded-xl bg-white border-gray-200"
+                                    />
                                 </div>
-                                <div className="space-y-1">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Local Identity</span>
-                                    <p className="text-xl font-black tracking-tight text-blue-600">{selectedContainerDetail.localCode || "UNASSIGNED"}</p>
-                                </div>
+                                {(editType === 'Foreign' || editForeignCode) && (
+                                    <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Serial Number (Foreign)</label>
+                                        <Input 
+                                            value={editForeignCode} 
+                                            onChange={(e) => setEditForeignCode(e.target.value.toUpperCase())}
+                                            placeholder="Foreign Code"
+                                            className="font-black text-lg h-12 rounded-xl bg-white border-amber-200 focus:ring-amber-500"
+                                        />
+                                    </div>
+                                )}
                             </div>
                             
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Lease Type</span>
-                                    <span className="font-bold text-gray-900">{selectedContainerDetail.type}</span>
-                                </div>
-                                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Current Status</span>
                                     <p className="font-bold text-gray-900 uppercase">{selectedContainerDetail.status}</p>
                                 </div>
+                                {selectedContainerDetail.invoicePrice !== undefined && (
+                                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Assigned Price</span>
+                                    <p className="font-bold text-emerald-900 uppercase">₱{selectedContainerDetail.invoicePrice.toFixed(2)}</p>
+                                </div>
+                                )}
                             </div>
                             
-                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Technical Notes</span>
-                                <p className="text-sm text-gray-700 italic leading-relaxed">{selectedContainerDetail.notes || "No technical notes registered."}</p>
+                            <div className="space-y-1.5 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Technical Notes</label>
+                                <textarea 
+                                    value={editNotes} 
+                                    onChange={(e) => setEditNotes(e.target.value.toUpperCase())}
+                                    placeholder="Condition, repairs, etc."
+                                    className="w-full h-20 rounded-xl border-gray-200 bg-white p-3 text-sm font-medium focus:ring-2 focus:ring-blue-600/20 focus:outline-none uppercase"
+                                />
                             </div>
 
-                            <div className="space-y-2 pt-2">
+                            <div className="pt-2 border-t border-gray-100 space-y-2">
+                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Activity History</span>
+                                {selectedContainerDetail.id && !selectedContainerDetail.isManualItem ? (
+                                    <div className="bg-gray-50 p-2 rounded-xl h-40 overflow-y-auto custom-scrollbar border border-gray-100">
+                                        <InlineContainerHistory containerId={selectedContainerDetail.id} />
+                                    </div>
+                                ) : (
+                                    <div className="bg-gray-50/50 p-6 rounded-xl border border-dashed border-gray-200 flex items-center justify-center">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Manual Entry - No Audit Trail</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-2 pt-2 border-t border-gray-100">
                                 <div className="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                                     <span>Registration</span>
                                     <span className="text-gray-900">{selectedContainerDetail.createdAt ? new Date(selectedContainerDetail.createdAt).toLocaleString() : "N/A"}</span>
@@ -446,9 +518,56 @@ export function ArchivedInvoices() {
                             </div>
                         </div>
                     )}
-                    <Button className="w-full h-12 rounded-xl font-black uppercase tracking-widest bg-gray-900" onClick={() => setSelectedContainerDetail(null)}>
-                        Dismiss
-                    </Button>
+                    <div className="flex gap-3">
+                        <Button variant="outline" className="flex-1 h-12 rounded-xl font-black uppercase tracking-widest" onClick={() => setSelectedContainerDetail(null)}>
+                            Dismiss
+                        </Button>
+                        <Button 
+                            className={`flex-[2] h-12 rounded-xl font-black uppercase tracking-widest shadow-xl transition-all ${editType === 'Foreign' ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'}`}
+                            disabled={isSavingContainer}
+                            onClick={async () => {
+                                if (!selectedContainerDetail) return;
+                                setIsSavingContainer(true);
+                                try {
+                                    if (selectedContainerDetail.isManualItem) {
+                                        const invRef = doc(db, 'invoices', selectedContainerDetail.parentInvoiceId);
+                                        const invoice = invoices.find(inv => inv.id === selectedContainerDetail.parentInvoiceId);
+                                        if (invoice && invoice.manualContainers) {
+                                            const updated = [...invoice.manualContainers];
+                                            const idx = updated.findIndex(c => c.number === selectedContainerDetail.number);
+                                            if (idx !== -1) {
+                                                updated[idx] = {
+                                                    ...updated[idx],
+                                                    rawText: editLocalCode.toUpperCase(),
+                                                    containerCode: editForeignCode.toUpperCase(),
+                                                    type: editType,
+                                                    notes: editNotes.trim().toUpperCase() || null
+                                                };
+                                                await updateDoc(invRef, { 
+                                                    manualContainers: updated,
+                                                    containerCodes: updated.map(c => c.rawText)
+                                                });
+                                            }
+                                        }
+                                    } else {
+                                        await updateDoc(doc(db, 'containers', selectedContainerDetail.id), {
+                                            localCode: editLocalCode.toUpperCase(),
+                                            containerCode: editForeignCode.toUpperCase(),
+                                            type: editType,
+                                            notes: editNotes.trim().toUpperCase() || null
+                                        });
+                                    }
+                                    setSelectedContainerDetail(null);
+                                } catch (e) {
+                                    handleFirestoreError(e, OperationType.WRITE, selectedContainerDetail.isManualItem ? `invoices/${selectedContainerDetail.parentInvoiceId}` : `containers/${selectedContainerDetail.id}`);
+                                } finally {
+                                    setIsSavingContainer(false);
+                                }
+                            }}
+                        >
+                            {isSavingContainer ? "SAVING..." : "SAVE PROFILE"}
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

@@ -21,6 +21,7 @@ import {
 import { Input } from '@/components/ui/input';
 
 import { Checkbox } from '@/components/ui/checkbox';
+import { InlineContainerHistory } from './ContainerHistory';
 
 interface BillingInvoicesProps {
     filterStatus: 'Pending' | 'Billing' | 'Billed';
@@ -397,11 +398,19 @@ export function BillingInvoices({ filterStatus }: BillingInvoicesProps) {
                                                                 key={`${index}`} 
                                                                 className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all group cursor-pointer"
                                                                 onClick={() => {
-                                                                    if (!invoice.isManual && item) {
-                                                                        setSelectedContainerDetail(item);
-                                                                        setEditLocalCode(item.localCode || '');
+                                                                    if (item) {
+                                                                        const priceKey = invoice.isManual ? (item.number !== undefined ? String(item.number - 1) : String(index)) : item.id;
+                                                                        const invPrice = invoice.containerPrices ? invoice.containerPrices[priceKey] : undefined;
+                                                                        setSelectedContainerDetail({
+                                                                            ...item, 
+                                                                            invoicePrice: invPrice,
+                                                                            isManualItem: invoice.isManual,
+                                                                            parentInvoiceId: invoice.id
+                                                                        });
+                                                                        setEditLocalCode(invoice.isManual ? item.rawText : (item.localCode || ''));
                                                                         setEditForeignCode(item.containerCode || '');
                                                                         setEditType(item.type || 'Local');
+                                                                        setEditNotes(item.notes || '');
                                                                     }
                                                                 }}
                                                             >
@@ -694,7 +703,7 @@ export function BillingInvoices({ filterStatus }: BillingInvoicesProps) {
                     setEditForeignCode('');
                 }
             }}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto custom-scrollbar">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-black uppercase tracking-tight">Technical Profile</DialogTitle>
                     </DialogHeader>
@@ -740,11 +749,17 @@ export function BillingInvoices({ filterStatus }: BillingInvoicesProps) {
                                 )}
                             </div>
                             
-                            <div className="grid grid-cols-1 gap-4">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Current Status</span>
                                     <p className="font-bold text-gray-900 uppercase">{selectedContainerDetail.status}</p>
                                 </div>
+                                {selectedContainerDetail.invoicePrice !== undefined && (
+                                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Assigned Price</span>
+                                    <p className="font-bold text-emerald-900 uppercase">₱{selectedContainerDetail.invoicePrice.toFixed(2)}</p>
+                                </div>
+                                )}
                             </div>
                             
                             <div className="space-y-1.5 p-4 bg-gray-50 rounded-2xl border border-gray-100">
@@ -756,8 +771,21 @@ export function BillingInvoices({ filterStatus }: BillingInvoicesProps) {
                                     className="w-full h-20 rounded-xl border-gray-200 bg-white p-3 text-sm font-medium focus:ring-2 focus:ring-blue-600/20 focus:outline-none uppercase"
                                 />
                             </div>
+                            
+                            <div className="pt-2 border-t border-gray-100 space-y-2">
+                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Activity History</span>
+                                {selectedContainerDetail.id && !selectedContainerDetail.isManualItem ? (
+                                    <div className="bg-gray-50 p-2 rounded-xl h-40 overflow-y-auto custom-scrollbar border border-gray-100">
+                                        <InlineContainerHistory containerId={selectedContainerDetail.id} />
+                                    </div>
+                                ) : (
+                                    <div className="bg-gray-50/50 p-6 rounded-xl border border-dashed border-gray-200 flex items-center justify-center">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Manual Entry - No Audit Trail</p>
+                                    </div>
+                                )}
+                            </div>
 
-                            <div className="space-y-2 pt-2">
+                            <div className="space-y-2 pt-2 border-t border-gray-100">
                                 <div className="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                                     <span>Registration</span>
                                     <span className="text-gray-900">{selectedContainerDetail.createdAt ? new Date(selectedContainerDetail.createdAt).toLocaleString() : "N/A"}</span>
@@ -776,15 +804,37 @@ export function BillingInvoices({ filterStatus }: BillingInvoicesProps) {
                                 if (!selectedContainerDetail) return;
                                 setIsSavingContainer(true);
                                 try {
-                                    await updateDoc(doc(db, 'containers', selectedContainerDetail.id), {
-                                        localCode: editLocalCode.toUpperCase(),
-                                        containerCode: editForeignCode.toUpperCase(),
-                                        type: editType,
-                                        notes: editNotes.trim().toUpperCase() || null
-                                    });
+                                    if (selectedContainerDetail.isManualItem) {
+                                        const invRef = doc(db, 'invoices', selectedContainerDetail.parentInvoiceId);
+                                        const invoice = invoices.find(inv => inv.id === selectedContainerDetail.parentInvoiceId);
+                                        if (invoice && invoice.manualContainers) {
+                                            const updated = [...invoice.manualContainers];
+                                            const idx = updated.findIndex(c => c.number === selectedContainerDetail.number);
+                                            if (idx !== -1) {
+                                                updated[idx] = {
+                                                    ...updated[idx],
+                                                    rawText: editLocalCode.toUpperCase(),
+                                                    containerCode: editForeignCode.toUpperCase(),
+                                                    type: editType,
+                                                    notes: editNotes.trim().toUpperCase() || null
+                                                };
+                                                await updateDoc(invRef, { 
+                                                    manualContainers: updated,
+                                                    containerCodes: updated.map(c => c.rawText)
+                                                });
+                                            }
+                                        }
+                                    } else {
+                                        await updateDoc(doc(db, 'containers', selectedContainerDetail.id), {
+                                            localCode: editLocalCode.toUpperCase(),
+                                            containerCode: editForeignCode.toUpperCase(),
+                                            type: editType,
+                                            notes: editNotes.trim().toUpperCase() || null
+                                        });
+                                    }
                                     setSelectedContainerDetail(null);
                                 } catch (e) {
-                                    handleFirestoreError(e, OperationType.WRITE, `containers/${selectedContainerDetail.id}`);
+                                    handleFirestoreError(e, OperationType.WRITE, selectedContainerDetail.isManualItem ? `invoices/${selectedContainerDetail.parentInvoiceId}` : `containers/${selectedContainerDetail.id}`);
                                 } finally {
                                     setIsSavingContainer(false);
                                 }
